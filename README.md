@@ -1,12 +1,16 @@
 # BoxesOfFriendship
 
-**BoxesOfFriendship** is an interactive project that connects two "friendship boxes" using Raspberry Pi or any Wi-Fi-enabled microcontroller (such as ESP8266). By pressing a button on one box, an MQTT message is sent to the paired box, triggering actions like lighting up LEDs. This setup enables real-time, wireless interaction between users, fostering a sense of connection regardless of physical distance.
+**BoxesOfFriendship** is an interactive project that connects two "friendship boxes" using Raspberry Pi or any Wi-Fi-enabled microcontroller (such as ESP8266) via the MQTT protocol. By pressing a button on one box, an MQTT message is sent to the paired box, triggering actions like lighting up LEDs. This setup enables real-time, wireless interaction between users, fostering a sense of connection regardless of physical distance.
 
 ## Project Features
 
 1. **Flexible Hardware Options**: Use a Raspberry Pi or any Wi-Fi-enabled microcontroller (e.g., ESP8266).
 2. **Customizable Components**: Supports any length of addressable LED strips and various types of buttons (touch-sensitive or standard).
 3. **MQTT Broker Choice**: Utilize a public broker (such as HiveMQ) or set up your own private broker.
+4. **Interactive Button Actions**:
+   - **Single Press**: The LED strip lights up and fades out in pink.
+   - **Double Press**: A pink light chaser runs along the strip.
+   - **Triple Press**: A rainbow light chaser runs along the strip.
 
 ## Assembly and Setup for ESP8266 (Wemos D1 Mini)
 
@@ -23,6 +27,8 @@
 
 #### Without Additional Power Supply
 
+
+
 +-----------+ +---------------------+ | Wemos D1 | | Addressable LED Strip| | Mini | | | | | | | | D4 (GPIO2)|----------------->| DATA | | | | | | D2 (GPIO4)|----------------->| BUTTON | | | | | | 5V |----------------->| VCC | | GND |----------------->| GND | +-----------+ +---------------------+
 
 
@@ -30,6 +36,7 @@
 
 
 +-----------+ +---------------------+ +---------------------+ | Wemos D1 | | Addressable LED Strip| | External Power Supply| | Mini | | | | | | | | | | | | D4 (GPIO2)|----------------->| DATA | | 5V | | | | | | | | D2 (GPIO4)|----------------->| BUTTON | | GND | | | | | | | | GND |----------------->| GND | | | | | | | | | +-----------+ +---------------------+ +---------------------+
+
 
 
 
@@ -50,14 +57,22 @@
      const char* ssid = "YOUR_SSID";
      const char* password = "YOUR_PASSWORD";
      const char* mqtt_server = "YOUR_MQTT_BROKER_URL";
+     #define DEVICE_ID 1 // Use 2 for the second device
      ```
+     - For the second device, change `#define DEVICE_ID 1` to `#define DEVICE_ID 2`.
      - Refer to [Popular Online Public MQTT Brokers](https://github.com/emqx/blog/blob/main/en/202111/popular-online-public-mqtt-brokers.md) for free options.
    - Ensure that the MQTT topic is unique to avoid conflicts. The same topic should be used on both devices.
    - Upload the sketch to the Wemos D1 Mini.
 
 3. **Final Setup**:
    - Once the sketch is uploaded and the device is connected to Wi-Fi and the MQTT broker, the setup is complete.
-   - Pressing the button will trigger the LED on the paired device.
+   - Pressing the button will trigger the LED actions on the paired device based on the number of presses.
+
+### Button Press Actions
+
+- **Single Press**: The LED strip will light up in pink and fade out.
+- **Double Press**: A pink light chaser effect will run along the LED strip.
+- **Triple Press**: A rainbow light chaser effect will run along the LED strip.
 
 ## Assembly and Setup for Raspberry Pi
 
@@ -83,7 +98,7 @@
    ```
 
 3. **Connect the LED Strip**:
-   - Connect the **DATA** line of the LED strip to **GPIO1 (PWM0)** on the Raspberry Pi.
+   - Connect the **DATA** line of the LED strip to **GPIO18 (PWM0)** on the Raspberry Pi.
    - Connect **VCC** and **GND** appropriately.
 
 4. **Set Up Auto-Start for `led.py`**:
@@ -120,9 +135,48 @@
 
 5. **Prepare the `led.py` Script**:
    - Ensure that the `led.py` script is configured to connect to the same MQTT broker and uses the same MQTT topic as the ESP8266 device.
+   - Example `led.py` configuration:
+     ```python
+     import paho.mqtt.client as mqtt
+     from rpi_ws281x import PixelStrip, Color
+     import time
+
+     # LED strip configuration
+     LED_COUNT = 30        # Number of LED pixels.
+     LED_PIN = 18          # GPIO pin connected to the pixels (18 uses PWM).
+     LED_FREQ_HZ = 800000  # LED signal frequency in hertz.
+     LED_DMA = 10          # DMA channel to use for generating signal.
+     LED_BRIGHTNESS = 255  # Brightness of the LEDs.
+     LED_INVERT = False    # True to invert the signal.
+
+     strip = PixelStrip(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS)
+     strip.begin()
+
+     # MQTT settings
+     MQTT_BROKER = "YOUR_MQTT_BROKER_URL"
+     MQTT_TOPIC = "your/unique/topic"
+
+     def on_connect(client, userdata, flags, rc):
+         print("Connected with result code " + str(rc))
+         client.subscribe(MQTT_TOPIC)
+
+     def on_message(client, userdata, msg):
+         message = msg.payload.decode()
+         if message == "button_pressed":
+             # Implement button press actions based on press counts
+             # This requires additional logic to track press counts
+             pass
+
+     client = mqtt.Client()
+     client.on_connect = on_connect
+     client.on_message = on_message
+
+     client.connect(MQTT_BROKER, 1883, 60)
+     client.loop_forever()
+     ```
 
 6. **Final Setup**:
-   - Once the service is running, pressing the button on the paired device will activate the LEDs on the Raspberry Pi.
+   - Once the service is running, pressing the button on the paired device will activate the LEDs on the Raspberry Pi based on the number of button presses.
 
 ## Running and Using the Project
 
@@ -134,12 +188,18 @@
 
 3. **Start the Devices**:
    - Power on both the ESP8266 and Raspberry Pi.
-   - Press the button on either device to trigger the LED on the paired device.
+   - Press the button on either device to trigger the LED actions on the paired device.
+
+4. **Button Press Actions**:
+   - **Single Press**: Lights up the LED strip in pink and fades out.
+   - **Double Press**: Runs a pink light chaser along the LED strip.
+   - **Triple Press**: Runs a rainbow light chaser along the LED strip.
 
 ## Notes
 
 - **Powering LEDs**: For larger LED strips, use an external power supply to prevent overloading the microcontroller.
 - **MQTT Security**: When using public brokers, ensure your MQTT topics are unique and secure to prevent unauthorized access.
+- **Device Configuration**: For the second device, update the `DEVICE_ID` in the code to differentiate it from the first device.
 - **Enhancements**: The project can be expanded by adding more sensors or different types of feedback mechanisms (e.g., vibration motors, display screens).
 
 ## Useful Links
